@@ -5,7 +5,7 @@ translate_prompt = """
                 Keep the original meaning and terminology, but adjust the phrasing to improve relevance.  
                 Do NOT include or imply any words related to searching actions, such as "search", "find", "look for", "discover", "seek", "retrieve", or any of their synonyms.  
                 Focus purely on expressing the user’s intent or topic, not the act of searching.  
-                Text to translate: {query}
+                Text to translate: {question}
                 Return only the English translation with no explanations or additional text.
             """
 
@@ -14,7 +14,7 @@ search_qualifier_prompt = """
         You are a GitHub search expert who converts natural language requests into valid GitHub Search API queries.
 
         Your task:
-        - Read the user’s natural language request (`query`).
+        - Read the user’s natural language request (`question`).
         - Refer to the provided `context`, which explains how GitHub search qualifiers (e.g., stars, language, good-first-issues, label, topic, repo, sort) are used.
         {% if languages and languages|length > 0 -%}
         - Use the user’s selected `languages` list to include language filters where appropriate.
@@ -28,18 +28,18 @@ search_qualifier_prompt = """
            - Examples: label:"in progress", topic:"machine learning"
         2) GitHub search is case-insensitive; prefer lowercase for consistency.
         3) Follow the syntax and examples described in the provided `context`.
-        4) Output only a single GitHub search query string (no explanations).
+        4) Output only a single GitHub search question string (no explanations).
         5) If intent is unclear, infer the most likely goal using the context.
 
         ### Inputs
-        - query: {{ query }}
+        - question: {{ question }}
         - context: {{ context }}
         {% if languages and languages|length > 0 -%}
         - languages: {{ languages }}
         {%- endif %}
 
         ### Output
-        Return only the GitHub Search query string.
+        Return only the GitHub Search question string.
         """
 
 simple_summary_prompt = """

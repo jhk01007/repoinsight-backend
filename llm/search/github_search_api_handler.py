@@ -2,6 +2,7 @@ import httpx
 from dotenv import load_dotenv
 from pydantic import HttpUrl
 
+from llm.search.chain.GithubSearchQueryChain import GithubSearchQueryChain
 from llm.search.chain.SimpleGithubRepositorySummaryChain import SimpleGithubRepositorySummaryChain
 from llm.search.value.SearchGitRepositoryDTO import SearchGitRepositoryDTO
 from llm.search.value.GithubRepositorySummaryDTO import GithubRepositorySummaryDTO
@@ -131,17 +132,30 @@ def _build_search_results(
     return search_results
 
 
+def _build_search_query(question: str, languages: list[str]):
+    query_chain = GithubSearchQueryChain()
+    return query_chain.invoke(question=question, languages=languages)
+
+
 def search(
-    query: str,
+    question: str,
+    languages: list[str],
     sort: SortBy = SortBy.STARS,
     order: OrderBy = OrderBy.DESC,
-    per_page: int = 10,
+    per_page: int = 5,
 ) -> list[SearchGitRepositoryDTO]:
     """
     GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
     """
-    search_url = _build_search_url(query=query, sort=sort, order=order, per_page=per_page)
 
+    # 1. Search Query 생성
+    search_query = _build_search_query(question=question, languages=languages)
+    print(f'생성된 Search Query: {search_query}')
+
+    # 2. Search url 생성
+    search_url = _build_search_url(query=search_query, sort=sort, order=order, per_page=per_page)
+
+    # 3. 검색
     with httpx.Client(timeout=20.0, headers=headers) as client:
         # 1) GitHub 검색
         items = _fetch_search_items(client, search_url)
@@ -163,9 +177,3 @@ def search(
             html_urls=html_urls,
             summaries=summaries,
         )
-
-
-if __name__ == "__main__":
-    # 간단 테스트
-    results = search("chatbot development language:java language:python language:javascript")
-    print(results)

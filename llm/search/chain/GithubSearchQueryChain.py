@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
@@ -11,12 +12,9 @@ from pinecone import ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from uuid import uuid4
 import os
-from dotenv import load_dotenv
 from llm.search.prompt.search_prompt import translate_prompt, search_qualifier_prompt
 from operator import itemgetter
 from datetime import datetime
-
-load_dotenv()
 
 # --- 전역 변수 ---
 REPOSITORIES_SEARCH_DOCS_URL = "https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories"
@@ -27,20 +25,23 @@ EMBEDDING_MODEL = 'text-embedding-3-large'
 EMBEDDING_MODEL_DIMENSION = 3072
 EMBEDDING_MODEL_METRIC = "cosine"
 
-SEARCH_QUALIFIER_CHAT_MODEL = 'gpt-4.1'
+SEARCH_question_CHAT_MODEL = 'gpt-4.1'
 TRANSLATE_CHAT_MODEL = 'gpt-4.1-mini'
 
 REPO_QUALIFIERS_NAMESPACE = "repo-qualifiers"
 
-
 # ISSUE_PR_QUALIFIERS_NAMESPACE = "issue-pr-qualifiers"
+load_dotenv()
 
-class GithubSearchQualifierChain:
 
+class GithubSearchQueryChain:
+    """
+        깃허브 검색 쿼리를 만드는 체인
+    """
     def __init__(self):
 
         # Pinecone 인덱스 생성
-        is_created, github_search_qualifiers_index = self._create_pinecone_index(index_name=INDEX_NAME)
+        is_created, github_search_queries_index = self._create_pinecone_index(index_name=INDEX_NAME)
 
         # 인덱스가 새로 만들어진 경우에만 저장
         embedding = OpenAIEmbeddings(model=EMBEDDING_MODEL)
@@ -50,29 +51,42 @@ class GithubSearchQualifierChain:
             repo_qualifiers_docs = splitter.split_url(REPOSITORIES_SEARCH_DOCS_URL)
 
             # 벡터 데이터베이스에 검색 한정자 저장
-            self._save_docs(github_search_qualifiers_index, repo_qualifiers_docs, embedding)
-
+            self._save_docs(github_search_queries_index, repo_qualifiers_docs, embedding)
 
         # chain 만들기
-        vector_store = PineconeVectorStore(index=github_search_qualifiers_index, embedding=embedding,
+        vector_store = PineconeVectorStore(index=github_search_queries_index, embedding=embedding,
                                            namespace=REPO_QUALIFIERS_NAMESPACE)
         retriever = vector_store.as_retriever(search_kwargs={"k": 5})  # 5개의 결과를 가져오도록
 
         translate_chain = self._get_translation_chain()
-        search_qualifier_chain = self._get_search_query_chain()
-
+        search_qualifier_chain = self._get_search_question_chain()
 
         def debug(name):
             return RunnableLambda(lambda x: (print(f"[DEBUG:{name}] {x}"), x)[1])
 
-        self.search_qualifier_chain = (
+        self.search_query_chain = (
+                # 1. 기본 값들 세팅
                 RunnablePassthrough().assign(
-                    current_date=RunnableLambda(lambda _: datetime.now().strftime("%Y-%m-%d")) | debug("현재 날짜"),
-                    query=RunnableLambda(itemgetter("query")) | translate_chain | debug("번역된 쿼리"),
-                    context=RunnableLambda(itemgetter("query")) | translate_chain | retriever | debug("찾아온 문서"),
-                    # context=RunnableLambda(lambda _: []) | debug("찾아온 문서"), # 참고 문서가 없는 경우 테스트
-                    languages=RunnableLambda(itemgetter("languages")) | debug("언어 목록")
+                    current_date=RunnableLambda(
+                        lambda _: datetime.now().strftime("%Y-%m-%d")
+                    ) | debug("현재 날짜"),
+                    original_question=RunnableLambda(itemgetter("question")) | debug("원본 질문"),
+                    languages=RunnableLambda(itemgetter("languages")) | debug("언어 목록"),
                 )
+                # 2. 번역은 여기서 딱 한 번만
+                | RunnablePassthrough().assign(
+                    translated_question=RunnableLambda(itemgetter("original_question"))
+                     | translate_chain
+                     | debug("번역된 질문"),
+                )
+                # 3. 번역된 쿼리를 question/context 둘 다에 재사용
+                | RunnablePassthrough().assign(
+                    question=RunnableLambda(itemgetter("translated_question")),
+                    context=RunnableLambda(itemgetter("translated_question"))
+                    | retriever
+                    | debug("찾아온 문서"),
+                )
+                # 4. 마지막 체인
                 | search_qualifier_chain
         )
 
@@ -108,21 +122,21 @@ class GithubSearchQualifierChain:
     @staticmethod
     def _get_translation_chain():
         """
-        필요한 입력값: query(사용자의 요청)
+        필요한 입력값: question(사용자의 요청)
         """
-        translate_query_template = PromptTemplate(
+        translate_question_template = PromptTemplate(
             template=translate_prompt,
-            input_variables=["query"])
+            input_variables=["question"])
         llm = ChatOpenAI(model=TRANSLATE_CHAT_MODEL)
 
-        return translate_query_template | llm | StrOutputParser()
+        return translate_question_template | llm | StrOutputParser()
 
     @staticmethod
-    def _get_search_query_chain():
+    def _get_search_question_chain():
         """
         필요한 입력값:
             - current_date: 현재 날짜
-            - query: 사용자의 요청
+            - question: 사용자의 요청
             - context: 검색 한정자 사용법
             - languages: 사용자가 선택한 언어 목록
         """
@@ -130,19 +144,13 @@ class GithubSearchQualifierChain:
             search_qualifier_prompt,
             template_format="jinja2"
         )
-        llm = ChatOpenAI(model=SEARCH_QUALIFIER_CHAT_MODEL)
+        llm = ChatOpenAI(model=SEARCH_question_CHAT_MODEL)
 
         return search_qualifier_template | llm | StrOutputParser()
 
     def invoke(self,
-               query: str, languages: list):
+               question: str, languages: list):
         # 모든 언어가 지원 되는지 검사
         validate_support(languages)
 
-        return self.search_qualifier_chain.invoke({"query": query, "languages": languages})
-
-
-# 테스트
-github_search_chain = GithubSearchQualifierChain()
-response = github_search_chain.invoke(query="챗봇 만들기", languages=["Java", "Python", "JavaScript"])
-print(response)
+        return self.search_query_chain.invoke({"question": question, "languages": languages})
