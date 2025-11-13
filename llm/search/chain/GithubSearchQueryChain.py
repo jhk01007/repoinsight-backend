@@ -12,7 +12,7 @@ from pinecone import ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from uuid import uuid4
 import os
-from llm.search.prompt.search_prompt import translate_prompt, search_qualifier_prompt
+from llm.search.prompt.search_prompt import translate_prompt, search_query_prompt
 from operator import itemgetter
 from datetime import datetime
 
@@ -25,7 +25,7 @@ EMBEDDING_MODEL = 'text-embedding-3-large'
 EMBEDDING_MODEL_DIMENSION = 3072
 EMBEDDING_MODEL_METRIC = "cosine"
 
-SEARCH_question_CHAT_MODEL = 'gpt-4.1'
+SEARCH_QUERY_CHAT_MODEL = 'gpt-4.1'
 TRANSLATE_CHAT_MODEL = 'gpt-4.1-mini'
 
 REPO_QUALIFIERS_NAMESPACE = "repo-qualifiers"
@@ -59,7 +59,7 @@ class GithubSearchQueryChain:
         retriever = vector_store.as_retriever(search_kwargs={"k": 5})  # 5개의 결과를 가져오도록
 
         translate_chain = self._get_translation_chain()
-        search_qualifier_chain = self._get_search_question_chain()
+        search_query_chain = self._get_search_query_chain()
 
         def debug(name):
             return RunnableLambda(lambda x: (print(f"[DEBUG:{name}] {x}"), x)[1])
@@ -87,7 +87,7 @@ class GithubSearchQueryChain:
                     | debug("찾아온 문서"),
                 )
                 # 4. 마지막 체인
-                | search_qualifier_chain
+                | search_query_chain
         )
 
     @staticmethod
@@ -132,7 +132,7 @@ class GithubSearchQueryChain:
         return translate_question_template | llm | StrOutputParser()
 
     @staticmethod
-    def _get_search_question_chain():
+    def _get_search_query_chain():
         """
         필요한 입력값:
             - current_date: 현재 날짜
@@ -140,13 +140,13 @@ class GithubSearchQueryChain:
             - context: 검색 한정자 사용법
             - languages: 사용자가 선택한 언어 목록
         """
-        search_qualifier_template = PromptTemplate.from_template(
-            search_qualifier_prompt,
+        search_query_template = PromptTemplate.from_template(
+            search_query_prompt,
             template_format="jinja2"
         )
-        llm = ChatOpenAI(model=SEARCH_question_CHAT_MODEL)
+        llm = ChatOpenAI(model=SEARCH_QUERY_CHAT_MODEL)
 
-        return search_qualifier_template | llm | StrOutputParser()
+        return search_query_template | llm | StrOutputParser()
 
     def invoke(self,
                question: str, languages: list):

@@ -9,7 +9,7 @@ translate_prompt = """
                 Return only the English translation with no explanations or additional text.
             """
 
-search_qualifier_prompt = """
+search_query_prompt = """
         Current Date: {{ current_date }}
         You are a GitHub search expert who converts natural language requests into valid GitHub Search API queries.
 
