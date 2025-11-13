@@ -2,8 +2,8 @@ from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
-from llm.search.git_languages import validate_support
-from llm.search.WebGithubDocsSplitter import WebGithubDocsSplitter
+from llm.search.util.git_languages import validate_support
+from llm.search.util.WebGithubDocsSplitter import WebGithubDocsSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
