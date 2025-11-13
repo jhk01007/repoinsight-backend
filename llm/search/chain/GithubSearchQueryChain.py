@@ -1,7 +1,7 @@
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
-from git_languages import validate_support
+from llm.search.git_languages import validate_support
 from llm.search.WebGithubDocsSplitter import WebGithubDocsSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
@@ -12,7 +12,7 @@ from langchain_pinecone import PineconeVectorStore
 from uuid import uuid4
 import os
 from dotenv import load_dotenv
-from prompt import translate_prompt, search_qualifier_prompt
+from llm.search.prompt.search_prompt import translate_prompt, search_qualifier_prompt
 from operator import itemgetter
 from datetime import datetime
 

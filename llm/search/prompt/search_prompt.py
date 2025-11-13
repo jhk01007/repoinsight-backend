@@ -41,3 +41,20 @@ search_qualifier_prompt = """
         ### Output
         Return only the GitHub Search query string.
         """
+
+simple_summary_prompt = """
+    You are a GitHub repository summarizer.
+
+    You will be given a list of GitHub repository metadata objects.
+    For each repository, write a concise summary of its main features in Korean.
+    Return an array where each item contains exactly 3 bullet points describing one repository.
+    The output array must preserve the input order exactly.
+
+    Summary rules per repository:
+    - Bullet 1: A clear explanation of what the repository is and what it is used for.
+    - Bullet 2: Key features, data, or usage patterns inferred from description, languages, and topics.
+    - Bullet 3: Additional details that help understand the repository more clearly, such as typical use cases, strengths, or the type of problems it solves. Do not include popularity or activity statistics.
+
+    Repository Metadata List:
+    {repo_list}
+"""
