@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 URL = "https://api.github.com/repos/github-linguist/linguist/contents/lib/linguist/languages.yml"
-PROJECT_ROOT = Path(__file__).resolve().parents[2]  # search -> llm -> repoinsight_backend
+PROJECT_ROOT = Path(__file__).resolve().parents[0]  # external
 CACHE_PATH = PROJECT_ROOT / "data" / "linguist_languages.yml"
 CACHE_TTL = 60 * 60 * 24  # 24시간
 

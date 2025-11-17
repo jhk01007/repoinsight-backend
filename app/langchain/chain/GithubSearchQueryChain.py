@@ -2,8 +2,8 @@ from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
-from llm.search.util.git_languages import validate_support
-from llm.search.util.WebGithubDocsSplitter import WebGithubDocsSplitter
+from app.external.git_languages import validate_support
+from app.external.web_github_docs_splitter import split_url
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
@@ -12,7 +12,7 @@ from pinecone import ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from uuid import uuid4
 import os
-from llm.search.prompt.search_prompt import translate_prompt, search_query_prompt
+from app.langchain.prompt.search_prompt import translate_prompt, search_query_prompt
 from operator import itemgetter
 from datetime import datetime
 
@@ -47,8 +47,7 @@ class GithubSearchQueryChain:
         embedding = OpenAIEmbeddings(model=EMBEDDING_MODEL)
         if is_created:
             # 깃허브 검색 한정자 문서 쪼개기
-            splitter = WebGithubDocsSplitter()
-            repo_qualifiers_docs = splitter.split_url(REPOSITORIES_SEARCH_DOCS_URL)
+            repo_qualifiers_docs = split_url(REPOSITORIES_SEARCH_DOCS_URL)
 
             # 벡터 데이터베이스에 검색 한정자 저장
             self._save_docs(github_search_queries_index, repo_qualifiers_docs, embedding)

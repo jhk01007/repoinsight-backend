@@ -24,7 +24,7 @@ search_query_prompt = """
         {%- endif %}
 
         ### Rules
-        1) If a qualifier value contains one or more spaces, wrap the entire value in double quotes (" ").
+        1) If a qualifier schema contains one or more spaces, wrap the entire schema in double quotes (" ").
            - Examples: label:"in progress", topic:"machine learning"
         2) GitHub search is case-insensitive; prefer lowercase for consistency.
         3) Follow the syntax and examples described in the provided `context`.

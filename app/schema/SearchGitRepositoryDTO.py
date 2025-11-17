@@ -1,6 +1,6 @@
 from pydantic import BaseModel, HttpUrl
 
-from llm.search.value.LangauageRatio import LanguageRatio
+from app.schema.LangauageRatio import LanguageRatio
 
 
 class SearchGitRepositoryDTO(BaseModel):

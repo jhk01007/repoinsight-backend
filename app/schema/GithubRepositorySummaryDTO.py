@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import List
 from datetime import datetime
 
-from llm.search.value.LangauageRatio import LanguageRatio
+from app.schema.LangauageRatio import LanguageRatio
 
 
 class GithubRepositorySummaryDTO(BaseModel):
