@@ -1,9 +1,10 @@
 from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_text_splitters import MarkdownHeaderTextSplitter
 
-from github.git_languages import validate_support
-from github.web_github_docs_splitter import split_url
+from github.languages import validate_support
+from github.web_docs_loader import fetch_github_docs
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
@@ -31,6 +32,8 @@ TRANSLATE_CHAT_MODEL = 'gpt-4.1-mini'
 REPO_QUALIFIERS_NAMESPACE = "repo-qualifiers"
 
 # ISSUE_PR_QUALIFIERS_NAMESPACE = "issue-pr-qualifiers"
+
+HEADERS_TO_SPLIT_ON: list[tuple[str, str]] = [("##", "Topic")]
 load_dotenv()
 
 
@@ -47,7 +50,7 @@ class GithubSearchQueryChain:
         embedding = OpenAIEmbeddings(model=EMBEDDING_MODEL)
         if is_created:
             # 깃허브 검색 한정자 문서 쪼개기
-            repo_qualifiers_docs = split_url(REPOSITORIES_SEARCH_DOCS_URL)
+            repo_qualifiers_docs = self._split_search_qualifier_docs()
 
             # 벡터 데이터베이스에 검색 한정자 저장
             self._save_docs(github_search_queries_index, repo_qualifiers_docs, embedding)
@@ -117,6 +120,19 @@ class GithubSearchQueryChain:
             documents=repo_qualifiers_docs, ids=uuids,
             namespace=REPO_QUALIFIERS_NAMESPACE
         )
+
+    @staticmethod
+    def _split_search_qualifier_docs():
+        # 리포지토리 검색한정자 문서를 가져옴
+        md_text = fetch_github_docs(REPOSITORIES_SEARCH_DOCS_URL)
+
+        # 가져온 문서를 쪼갬
+        splitter = MarkdownHeaderTextSplitter(
+            headers_to_split_on=list(HEADERS_TO_SPLIT_ON),
+            strip_headers=False,
+        )
+        repo_qualifiers_docs = splitter.split_text(md_text)
+        return repo_qualifiers_docs
 
     @staticmethod
     def _get_translation_chain():
