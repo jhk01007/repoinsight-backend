@@ -2,13 +2,13 @@ import httpx
 from dotenv import load_dotenv
 from pydantic import HttpUrl
 
-from app.langchain.chain.github_search_query_chain import GithubSearchQueryChain
-from app.langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
-from app.schema.github_repository_search_response import GithubRepositorySearchResponse
-from app.schema.github_repository_summary_dto import GithubRepositorySummaryDTO
-from app.schema.langauage_ratio import LanguageRatio
-from app.schema.order_by import OrderBy
-from app.schema.sort_by import SortBy
+from langchain.chain.github_search_query_chain import GithubSearchQueryChain
+from langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
+from schema.github_repository_search_response import GithubRepositorySearchResponse
+from schema.github_repository_summary_dto import GithubRepositorySummaryDTO
+from schema.langauage_ratio import LanguageRatio
+from schema.order_by import OrderBy
+from schema.sort_by import SortBy
 
 SEARCH_URL = "https://api.github.com/search/repositories?q={query}&sort={sort}&order={order}&per_page={per_page}"
 
@@ -77,7 +77,7 @@ def _fetch_language_ratios(languages_url: str, client: httpx.Client) -> list[Lan
     languages: list[LanguageRatio] = []
     for name, byte_count in lang_bytes.items():
         ratio_percent = byte_count / total * 100
-        languages.append(LanguageRatio(name=name, ratio=f"{ratio_percent:.1f}%"))
+        languages.append(LanguageRatio(name=name, ratio=f"{ratio_percent:.2f}%"))
 
     return languages
 

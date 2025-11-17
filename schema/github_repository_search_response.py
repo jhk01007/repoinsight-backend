@@ -1,6 +1,6 @@
 from pydantic import BaseModel, HttpUrl
 
-from app.schema.langauage_ratio import LanguageRatio
+from schema.langauage_ratio import LanguageRatio
 
 
 class GithubRepositorySearchResponse(BaseModel):

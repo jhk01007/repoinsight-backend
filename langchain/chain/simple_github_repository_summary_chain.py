@@ -4,7 +4,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
-from app.langchain.prompt.search_prompt import simple_summary_prompt
+from langchain.prompt.search_prompt import simple_summary_prompt
 
 CHAT_MODEL = 'gpt-4.1-mini'
 

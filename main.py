@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from app.schema.github_repository_search_request import GithubRepositorySearchRequest
-from app.schema.github_repository_search_response import GithubRepositorySearchResponse
+from schema.github_repository_search_request import GithubRepositorySearchRequest
+from schema.github_repository_search_response import GithubRepositorySearchResponse
 
-from app.service.github_search_service import search
+from service.github_search_service import search
 
 app = FastAPI()
 

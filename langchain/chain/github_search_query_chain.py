@@ -2,8 +2,8 @@ from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
-from app.external.git_languages import validate_support
-from app.external.web_github_docs_splitter import split_url
+from external.git_languages import validate_support
+from external.web_github_docs_splitter import split_url
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
@@ -12,7 +12,7 @@ from pinecone import ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 from uuid import uuid4
 import os
-from app.langchain.prompt.search_prompt import translate_prompt, search_query_prompt
+from langchain.prompt.search_prompt import translate_prompt, search_query_prompt
 from operator import itemgetter
 from datetime import datetime
 
