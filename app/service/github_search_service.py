@@ -2,13 +2,13 @@ import httpx
 from dotenv import load_dotenv
 from pydantic import HttpUrl
 
-from app.langchain.chain.GithubSearchQueryChain import GithubSearchQueryChain
-from app.langchain.chain.SimpleGithubRepositorySummaryChain import SimpleGithubRepositorySummaryChain
-from app.schema.SearchGitRepositoryDTO import SearchGitRepositoryDTO
-from app.schema.GithubRepositorySummaryDTO import GithubRepositorySummaryDTO
-from app.schema.LangauageRatio import LanguageRatio
-from app.schema.OrderBy import OrderBy
-from app.schema.SortBy import SortBy
+from app.langchain.chain.github_search_query_chain import GithubSearchQueryChain
+from app.langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
+from app.schema.search_git_repository_dto import SearchGitRepositoryDTO
+from app.schema.github_repository_summary_dto import GithubRepositorySummaryDTO
+from app.schema.langauage_ratio import LanguageRatio
+from app.schema.order_by import OrderBy
+from app.schema.sort_by import SortBy
 
 SEARCH_URL = "https://api.github.com/search/repositories?q={query}&sort={sort}&order={order}&per_page={per_page}"
 
