@@ -4,8 +4,9 @@ from pydantic import HttpUrl
 
 from langchain.chain.github_search_query_chain import GithubSearchQueryChain
 from langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
-from schema.github_repository_search_response import GithubRepositorySearchResponse
-from schema.github_repository_summary_dto import GithubRepositorySummaryDTO
+from langchain.vector_store.pinecone_github_search_qualifier_store import PineconeGithubSearchQualifierStore
+from schema.github_repo_search_resp import GithubRepoSearchResp
+from schema.github_repo_summary_dto import GithubRepositorySummaryDTO
 from schema.langauage_ratio import LanguageRatio
 from schema.order_by import OrderBy
 from schema.sort_by import SortBy
@@ -25,7 +26,7 @@ def search(
     sort: SortBy = SortBy.STARS,
     order: OrderBy = OrderBy.DESC,
     per_page: int = 5,
-) -> list[GithubRepositorySearchResponse]:
+) -> list[GithubRepoSearchResp]:
     """
     GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
     """
@@ -157,14 +158,14 @@ def _build_search_results(
     stargazers_list: list[int],
     html_urls: list[HttpUrl],
     summaries: list[list[str]],
-) -> list[GithubRepositorySearchResponse]:
+) -> list[GithubRepoSearchResp]:
     """LLM 요약 결과와 원본 데이터를 조합해 최종 DTO 리스트를 만든다."""
-    search_results: list[GithubRepositorySearchResponse] = []
+    search_results: list[GithubRepoSearchResp] = []
 
     for name, langs, stars, url, summary in zip(
         names, languages_per_repo, stargazers_list, html_urls, summaries
     ):
-        result = GithubRepositorySearchResponse(
+        result = GithubRepoSearchResp(
             name=name,
             function_summary=summary,
             languages=langs,
@@ -177,5 +178,7 @@ def _build_search_results(
 
 
 def _build_search_query(question: str, languages: list[str]):
-    query_chain = GithubSearchQueryChain()
+    # Pinecone 벡터 디비 의존성 주입
+    store = PineconeGithubSearchQualifierStore("github-search-qualifiers", "repo-qualifiers")
+    query_chain = GithubSearchQueryChain(store)
     return query_chain.invoke(question=question, languages=languages)

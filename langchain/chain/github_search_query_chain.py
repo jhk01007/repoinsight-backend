@@ -1,149 +1,76 @@
 from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_text_splitters import MarkdownHeaderTextSplitter
-
-from github.languages import validate_support
-from github.web_docs_loader import fetch_github_docs
-from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import PromptTemplate
-from pinecone import Pinecone
-from pinecone import ServerlessSpec
-from langchain_pinecone import PineconeVectorStore
-from uuid import uuid4
-import os
-from langchain.prompt.search_prompt import translate_prompt, search_query_prompt
+
 from operator import itemgetter
 from datetime import datetime
 
-# --- 전역 변수 ---
-REPOSITORIES_SEARCH_DOCS_URL = "https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories"
-ISSUES_AND_PRS_DOCS_URL = "https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests"
+from github.web_docs_loader import fetch_github_docs
+from langchain.prompt.search_prompt import translate_prompt, search_query_prompt
 
-INDEX_NAME = "github-search-qualifiers"
-EMBEDDING_MODEL = 'text-embedding-3-large'
-EMBEDDING_MODEL_DIMENSION = 3072
-EMBEDDING_MODEL_METRIC = "cosine"
+from github.languages import validate_support
+from langchain.vector_store.github_search_qualifier_store_base import GithubSearchQualifierStoreBase
 
-SEARCH_QUERY_CHAT_MODEL = 'gpt-4.1'
-TRANSLATE_CHAT_MODEL = 'gpt-4.1-mini'
-
-REPO_QUALIFIERS_NAMESPACE = "repo-qualifiers"
-
-# ISSUE_PR_QUALIFIERS_NAMESPACE = "issue-pr-qualifiers"
-
-HEADERS_TO_SPLIT_ON: list[tuple[str, str]] = [("##", "Topic")]
 load_dotenv()
+
+REPOSITORIES_SEARCH_DOCS_URL = "https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories"
+HEADERS_TO_SPLIT_ON = [("##", "Topic")]
 
 
 class GithubSearchQueryChain:
-    """
-        깃허브 검색 쿼리를 만드는 체인
-    """
-    def __init__(self):
+    """ GitHub Search Query Builder """
 
-        # Pinecone 인덱스 생성
-        is_created, github_search_queries_index = self._create_pinecone_index(index_name=INDEX_NAME)
+    def __init__(self, vector_db: GithubSearchQualifierStoreBase):
+        """외부에서 Vector DB 주입"""
 
-        # 인덱스가 새로 만들어진 경우에만 저장
-        embedding = OpenAIEmbeddings(model=EMBEDDING_MODEL)
-        if is_created:
-            # 깃허브 검색 한정자 문서 쪼개기
-            repo_qualifiers_docs = self._split_search_qualifier_docs()
+        self.vector_db = vector_db
 
-            # 벡터 데이터베이스에 검색 한정자 저장
-            self._save_docs(github_search_queries_index, repo_qualifiers_docs, embedding)
+        # 문서 로딩 및 저장
+        repo_docs = self._load_search_docs()
+        self.vector_db.save_documents(repo_docs)
 
-        # chain 만들기
-        vector_store = PineconeVectorStore(index=github_search_queries_index, embedding=embedding,
-                                           namespace=REPO_QUALIFIERS_NAMESPACE)
-        retriever = vector_store.as_retriever(search_kwargs={"k": 5})  # 5개의 결과를 가져오도록
+        retriever = self.vector_db.get_retriever(top_k=5)
 
         translate_chain = self._get_translation_chain()
         search_query_chain = self._get_search_query_chain()
 
         def debug(name):
             return RunnableLambda(lambda x: (print(f"[DEBUG:{name}] {x}"), x)[1])
-
         self.search_query_chain = (
-                # 1. 기본 값들 세팅
-                RunnablePassthrough().assign(
-                    current_date=RunnableLambda(
-                        lambda _: datetime.now().strftime("%Y-%m-%d")
-                    ) | debug("현재 날짜"),
-                    original_question=RunnableLambda(itemgetter("question")) | debug("원본 질문"),
-                    languages=RunnableLambda(itemgetter("languages")) | debug("언어 목록"),
-                )
-                # 2. 번역은 여기서 딱 한 번만
-                | RunnablePassthrough().assign(
-                    translated_question=RunnableLambda(itemgetter("original_question"))
-                     | translate_chain
-                     | debug("번역된 질문"),
-                )
-                # 3. 번역된 쿼리를 question/context 둘 다에 재사용
-                | RunnablePassthrough().assign(
-                    question=RunnableLambda(itemgetter("translated_question")),
-                    context=RunnableLambda(itemgetter("translated_question"))
-                    | retriever
-                    | debug("찾아온 문서"),
-                )
-                # 4. 마지막 체인
-                | search_query_chain
-        )
-
-    @staticmethod
-    def _create_pinecone_index(index_name: str):
-        pinecone_api_key = os.environ.get("PINECONE_API_KEY")
-        pc = Pinecone(api_key=pinecone_api_key)
-
-        # 인덱스 존재 여부 확인
-        if not pc.has_index(index_name):
-            # 인덱스 생성
-            pc.create_index(
-                name=index_name,
-                spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-                # text-embedding-3-large 스펙에 맞게 지정
-                dimension=EMBEDDING_MODEL_DIMENSION,
-                metric=EMBEDDING_MODEL_METRIC
+            RunnablePassthrough()
+            .assign(
+                current_date=RunnableLambda(lambda _: datetime.now().strftime("%Y-%m-%d")) | debug("현재 날짜"),
+                original_question=RunnableLambda(itemgetter("question")) | debug("원본 질문"),
+                languages=RunnableLambda(itemgetter("languages")) | debug("언어 목록"),
             )
-            return True, pc.Index(index_name)
-        # 생성 여부와 관계 없이 밚환
-        return False, pc.Index(index_name)
-
-    @staticmethod
-    def _save_docs(github_search_qualifiers_index, repo_qualifiers_docs, embedding):
-        vector_store = PineconeVectorStore(index=github_search_qualifiers_index, embedding=embedding)
-        # 레포 검색 한정자 저장
-        uuids = [str(uuid4()) for _ in range(len(repo_qualifiers_docs))]
-        vector_store.add_documents(
-            documents=repo_qualifiers_docs, ids=uuids,
-            namespace=REPO_QUALIFIERS_NAMESPACE
+            .assign(
+                translated_question=RunnableLambda(itemgetter("original_question")) | translate_chain  | debug("번역된 질문"),
+            )
+            .assign(
+                question=RunnableLambda(itemgetter("translated_question")),
+                context=RunnableLambda(itemgetter("translated_question")) | retriever | debug("찾아온 문서"),
+            )
+            | search_query_chain
         )
 
     @staticmethod
-    def _split_search_qualifier_docs():
-        # 리포지토리 검색한정자 문서를 가져옴
+    def _load_search_docs():
         md_text = fetch_github_docs(REPOSITORIES_SEARCH_DOCS_URL)
-
-        # 가져온 문서를 쪼갬
-        splitter = MarkdownHeaderTextSplitter(
-            headers_to_split_on=list(HEADERS_TO_SPLIT_ON),
-            strip_headers=False,
-        )
-        repo_qualifiers_docs = splitter.split_text(md_text)
-        return repo_qualifiers_docs
+        splitter = MarkdownHeaderTextSplitter(headers_to_split_on=HEADERS_TO_SPLIT_ON, strip_headers=False)
+        return splitter.split_text(md_text)
 
     @staticmethod
     def _get_translation_chain():
         """
         필요한 입력값: question(사용자의 요청)
         """
+        llm = ChatOpenAI(model="gpt-4.1-mini")
         translate_question_template = PromptTemplate(
             template=translate_prompt,
             input_variables=["question"])
-        llm = ChatOpenAI(model=TRANSLATE_CHAT_MODEL)
-
         return translate_question_template | llm | StrOutputParser()
 
     @staticmethod
@@ -155,17 +82,13 @@ class GithubSearchQueryChain:
             - context: 검색 한정자 사용법
             - languages: 사용자가 선택한 언어 목록
         """
+        llm = ChatOpenAI(model="gpt-4.1")
         search_query_template = PromptTemplate.from_template(
             search_query_prompt,
             template_format="jinja2"
         )
-        llm = ChatOpenAI(model=SEARCH_QUERY_CHAT_MODEL)
-
         return search_query_template | llm | StrOutputParser()
 
-    def invoke(self,
-               question: str, languages: list):
-        # 모든 언어가 지원 되는지 검사
+    def invoke(self, question: str, languages: list):
         validate_support(languages)
-
         return self.search_query_chain.invoke({"question": question, "languages": languages})
