@@ -4,7 +4,7 @@ from pydantic import HttpUrl
 
 from app.langchain.chain.github_search_query_chain import GithubSearchQueryChain
 from app.langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
-from app.schema.search_git_repository_dto import SearchGitRepositoryDTO
+from app.schema.github_repository_search_response import GithubRepositorySearchResponse
 from app.schema.github_repository_summary_dto import GithubRepositorySummaryDTO
 from app.schema.langauage_ratio import LanguageRatio
 from app.schema.order_by import OrderBy
@@ -18,6 +18,50 @@ headers = {
 }
 
 load_dotenv()
+
+def search(
+    question: str,
+    languages: list[str] | None = None,
+    sort: SortBy = SortBy.STARS,
+    order: OrderBy = OrderBy.DESC,
+    per_page: int = 5,
+) -> list[GithubRepositorySearchResponse]:
+    """
+    GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
+    """
+
+    if languages is None:
+        languages = []
+
+    # 1. Search Query 생성
+    search_query = _build_search_query(question=question, languages=languages)
+    print(f'생성된 Search Query: {search_query}')
+
+    # 2. Search url 생성
+    search_url = _build_search_url(query=search_query, sort=sort, order=order, per_page=per_page)
+
+    # 3. 검색
+    with httpx.Client(timeout=20.0, headers=headers) as client:
+        # 1) GitHub 검색
+        items = _fetch_search_items(client, search_url)
+
+        # 2) 요약 입력 DTO + 보조 데이터 준비
+        summary_dtos, languages_per_repo, html_urls, names, stargazers_list = _build_summary_dtos_and_aux(
+            client,
+            items,
+        )
+
+        # 3) LLM 한 번 호출해서 요약 리스트 얻기
+        summaries = _summarize_repositories(summary_dtos)
+
+        # 4) 최종 응답 DTO로 조립
+        return _build_search_results(
+            names=names,
+            languages_per_repo=languages_per_repo,
+            stargazers_list=stargazers_list,
+            html_urls=html_urls,
+            summaries=summaries,
+        )
 
 
 def _fetch_language_ratios(languages_url: str, client: httpx.Client) -> list[LanguageRatio]:
@@ -33,7 +77,7 @@ def _fetch_language_ratios(languages_url: str, client: httpx.Client) -> list[Lan
     languages: list[LanguageRatio] = []
     for name, byte_count in lang_bytes.items():
         ratio_percent = byte_count / total * 100
-        languages.append(LanguageRatio(name=name, ratio=f"{ratio_percent:.0f}%"))
+        languages.append(LanguageRatio(name=name, ratio=f"{ratio_percent:.1f}%"))
 
     return languages
 
@@ -113,14 +157,14 @@ def _build_search_results(
     stargazers_list: list[int],
     html_urls: list[HttpUrl],
     summaries: list[list[str]],
-) -> list[SearchGitRepositoryDTO]:
+) -> list[GithubRepositorySearchResponse]:
     """LLM 요약 결과와 원본 데이터를 조합해 최종 DTO 리스트를 만든다."""
-    search_results: list[SearchGitRepositoryDTO] = []
+    search_results: list[GithubRepositorySearchResponse] = []
 
     for name, langs, stars, url, summary in zip(
         names, languages_per_repo, stargazers_list, html_urls, summaries
     ):
-        result = SearchGitRepositoryDTO(
+        result = GithubRepositorySearchResponse(
             name=name,
             function_summary=summary,
             languages=langs,
@@ -135,45 +179,3 @@ def _build_search_results(
 def _build_search_query(question: str, languages: list[str]):
     query_chain = GithubSearchQueryChain()
     return query_chain.invoke(question=question, languages=languages)
-
-
-def search(
-    question: str,
-    languages: list[str],
-    sort: SortBy = SortBy.STARS,
-    order: OrderBy = OrderBy.DESC,
-    per_page: int = 5,
-) -> list[SearchGitRepositoryDTO]:
-    """
-    GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
-    """
-
-    # 1. Search Query 생성
-    search_query = _build_search_query(question=question, languages=languages)
-    print(f'생성된 Search Query: {search_query}')
-
-    # 2. Search url 생성
-    search_url = _build_search_url(query=search_query, sort=sort, order=order, per_page=per_page)
-
-    # 3. 검색
-    with httpx.Client(timeout=20.0, headers=headers) as client:
-        # 1) GitHub 검색
-        items = _fetch_search_items(client, search_url)
-
-        # 2) 요약 입력 DTO + 보조 데이터 준비
-        summary_dtos, languages_per_repo, html_urls, names, stargazers_list = _build_summary_dtos_and_aux(
-            client,
-            items,
-        )
-
-        # 3) LLM 한 번 호출해서 요약 리스트 얻기
-        summaries = _summarize_repositories(summary_dtos)
-
-        # 4) 최종 응답 DTO로 조립
-        return _build_search_results(
-            names=names,
-            languages_per_repo=languages_per_repo,
-            stargazers_list=stargazers_list,
-            html_urls=html_urls,
-            summaries=summaries,
-        )
