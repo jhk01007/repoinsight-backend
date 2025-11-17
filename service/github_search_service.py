@@ -1,4 +1,3 @@
-import httpx
 from dotenv import load_dotenv
 from pydantic import HttpUrl
 
@@ -11,14 +10,11 @@ from schema.langauage_ratio import LanguageRatio
 from schema.order_by import OrderBy
 from schema.sort_by import SortBy
 
-SEARCH_URL = "https://api.github.com/search/repositories?q={query}&sort={sort}&order={order}&per_page={per_page}"
-
-headers = {
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-}
+from github.search_results_loader import load_search_results
+from github.repository_lanaguages_loader import load_repository_languages
 
 load_dotenv()
+
 
 def search(
     question: str,
@@ -36,79 +32,34 @@ def search(
 
     # 1. Search Query 생성
     search_query = _build_search_query(question=question, languages=languages)
-    print(f'생성된 Search Query: {search_query}')
+    print(f"생성된 Search Query: {search_query}")
 
-    # 2. Search url 생성
-    search_url = _build_search_url(query=search_query, sort=sort, order=order, per_page=per_page)
-
-    # 3. 검색
-    with httpx.Client(timeout=20.0, headers=headers) as client:
-        # 1) GitHub 검색
-        items = _fetch_search_items(client, search_url)
-
-        # 2) 요약 입력 DTO + 보조 데이터 준비
-        summary_dtos, languages_per_repo, html_urls, names, stargazers_list = _build_summary_dtos_and_aux(
-            client,
-            items,
-        )
-
-        # 3) LLM 한 번 호출해서 요약 리스트 얻기
-        summaries = _summarize_repositories(summary_dtos)
-
-        # 4) 최종 응답 DTO로 조립
-        return _build_search_results(
-            names=names,
-            languages_per_repo=languages_per_repo,
-            stargazers_list=stargazers_list,
-            html_urls=html_urls,
-            summaries=summaries,
-        )
-
-
-def _fetch_language_ratios(languages_url: str, client: httpx.Client) -> list[LanguageRatio]:
-    """각 리포지토리의 languages_url을 호출해서 LanguageRatio 리스트로 변환"""
-    r = client.get(languages_url)
-    r.raise_for_status()
-    lang_bytes: dict[str, int] = r.json()  # 예: {"Python": 40479, "Shell": 1352}
-
-    total = sum(lang_bytes.values())
-    if total == 0:
-        return []
-
-    languages: list[LanguageRatio] = []
-    for name, byte_count in lang_bytes.items():
-        ratio_percent = byte_count / total * 100
-        languages.append(LanguageRatio(name=name, ratio=f"{ratio_percent:.2f}%"))
-
-    return languages
-
-
-def _build_search_url(
-    query: str,
-    sort: SortBy,
-    order: OrderBy,
-    per_page: int,
-) -> str:
-    """검색 URL 문자열 생성."""
-    return SEARCH_URL.format(
-        query=query,
+    # 2. 검색 API 호출 (로더로 분리)
+    repos = load_search_results(
+        query=search_query,
         sort=sort.value,
         order=order.value,
         per_page=per_page,
     )
 
+    # 3. 요약 입력 DTO + 보조 데이터 준비
+    summary_dtos, languages_per_repo, html_urls, names, stargazers_list = _build_summary_dtos_and_aux(repos)
 
-def _fetch_search_items(client: httpx.Client, search_url: str) -> list[dict]:
-    """GitHub 검색 API 호출 후 items 리스트만 반환."""
-    r = client.get(search_url)
-    r.raise_for_status()
-    search_result = r.json()
-    return search_result.get("items", [])
+    # 4. LLM 한 번 호출해서 요약 리스트 얻기
+    summaries = _summarize_repositories(summary_dtos)
+
+    # 5. 최종 응답 DTO로 조립
+    return _build_search_results(
+        names=names,
+        languages_per_repo=languages_per_repo,
+        stargazers_list=stargazers_list,
+        html_urls=html_urls,
+        summaries=summaries,
+    )
 
 
 def _build_summary_dtos_and_aux(
-    client: httpx.Client,
-    items: list[dict],
+    repos: list[dict],
 ) -> tuple[list[GithubRepositorySummaryDTO], list[list[LanguageRatio]], list[HttpUrl], list[str], list[int]]:
     """
     - LLM 요약 입력용 GithubRepositorySummaryDTO 리스트
@@ -121,25 +72,44 @@ def _build_summary_dtos_and_aux(
     names: list[str] = []
     stargazers_list: list[int] = []
 
-    for item in items:
-        languages = _fetch_language_ratios(item["languages_url"], client)
+    for repo in repos:
+        # 언어 조회 API 호출은 로더로 분리
+        lang_bytes = load_repository_languages(repo["languages_url"])
+        languages = _convert_lang_bytes_to_ratios(lang_bytes)
 
         summary_dtos.append(
             GithubRepositorySummaryDTO(
-                name=item["name"],
-                description=item.get("description") or "",
+                name=repo["name"],
+                description=repo.get("description") or "",
                 languages=languages,
-                topics=item.get("topics", []),
-                pushed_at=item["pushed_at"],
+                topics=repo.get("topics", []),
+                pushed_at=repo["pushed_at"],
             )
         )
 
         languages_per_repo.append(languages)
-        html_urls.append(item["html_url"])
-        names.append(item["name"])
-        stargazers_list.append(item["stargazers_count"])
+        html_urls.append(repo["html_url"])
+        names.append(repo["name"])
+        stargazers_list.append(repo["stargazers_count"])
 
     return summary_dtos, languages_per_repo, html_urls, names, stargazers_list
+
+
+def _convert_lang_bytes_to_ratios(lang_bytes: dict[str, int]) -> list[LanguageRatio]:
+    """
+    GitHub languages API 응답(dict[str, int])을 LanguageRatio 리스트로 변환.
+    예: {"Python": 40479, "Shell": 1352}
+    """
+    total = sum(lang_bytes.values())
+    if total == 0:
+        return []
+
+    languages: list[LanguageRatio] = []
+    for name, byte_count in lang_bytes.items():
+        ratio_percent = byte_count / total * 100
+        languages.append(LanguageRatio(name=name, ratio=f"{ratio_percent:.2f}%"))
+
+    return languages
 
 
 def _summarize_repositories(
