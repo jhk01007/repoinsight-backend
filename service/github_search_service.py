@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from pydantic import HttpUrl
 
+from github.languages import validate_support
 from langchain.chain.github_search_query_chain import GithubSearchQueryChain
 from langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
 from langchain.vector_store.pinecone_github_search_qualifier_store import PineconeGithubSearchQualifierStore
@@ -26,6 +27,9 @@ def search(
     """
     GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
     """
+
+    # 지원 가능한 언어인지 검증
+    validate_support(languages)
 
     if languages is None:
         languages = []

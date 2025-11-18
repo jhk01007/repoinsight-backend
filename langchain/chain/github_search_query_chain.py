@@ -90,5 +90,4 @@ class GithubSearchQueryChain:
         return search_query_template | llm | StrOutputParser()
 
     def invoke(self, question: str, languages: list):
-        validate_support(languages)
         return self.search_query_chain.invoke({"question": question, "languages": languages})
