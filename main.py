@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from pydantic import BaseModel
 
+from common.exception_handers import register_exception_handlers
 from schema.github_repo_search_req import GithubRepoSearchReq
 from schema.github_repo_search_resp import GithubRepoSearchResp
 
@@ -24,3 +25,6 @@ def search_repository(request: GithubRepoSearchReq):
     # 검색
     results = search(request.keyword, request.languages)
     return WrappingSearchingResponse(results=results)
+
+# 예외 핸들러 등록
+register_exception_handlers(app)
