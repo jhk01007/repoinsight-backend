@@ -8,7 +8,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ClientError)
     async def client_error_handler(request: Request, exc: ClientError):
         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={"detail": str(exc)},
         )
 
