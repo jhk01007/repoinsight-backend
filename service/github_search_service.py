@@ -5,8 +5,8 @@ from github.languages import validate_support
 from langchain.chain.github_search_query_chain import GithubSearchQueryChain
 from langchain.chain.simple_github_repository_summary_chain import SimpleGithubRepositorySummaryChain
 from langchain.vector_store.pinecone_github_search_qualifier_store import PineconeGithubSearchQualifierStore
-from schema.github_repo_search_resp import GithubRepoSearchResp
-from schema.github_repo_summary_dto import GithubRepositorySummaryDTO
+from schema.repo_search_resp import RepoSearchResp
+from schema.repo_summary_dto import RepositorySummaryDTO
 from schema.langauage_ratio import LanguageRatio
 from schema.order_by import OrderBy
 from schema.sort_by import SortBy
@@ -23,7 +23,7 @@ def search(
     sort: SortBy = SortBy.STARS,
     order: OrderBy = OrderBy.DESC,
     per_page: int = 5,
-) -> list[GithubRepoSearchResp]:
+) -> list[RepoSearchResp]:
     """
     GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
     """
@@ -64,13 +64,13 @@ def search(
 
 def _build_summary_dtos_and_aux(
     repos: list[dict],
-) -> tuple[list[GithubRepositorySummaryDTO], list[list[LanguageRatio]], list[HttpUrl], list[str], list[int]]:
+) -> tuple[list[RepositorySummaryDTO], list[list[LanguageRatio]], list[HttpUrl], list[str], list[int]]:
     """
     - LLM 요약 입력용 GithubRepositorySummaryDTO 리스트
     - 최종 응답 조립에 필요한 보조 데이터들
     을 한 번에 만든다.
     """
-    summary_dtos: list[GithubRepositorySummaryDTO] = []
+    summary_dtos: list[RepositorySummaryDTO] = []
     languages_per_repo: list[list[LanguageRatio]] = []
     html_urls: list[HttpUrl] = []
     names: list[str] = []
@@ -82,7 +82,7 @@ def _build_summary_dtos_and_aux(
         languages = _convert_lang_bytes_to_ratios(lang_bytes)
 
         summary_dtos.append(
-            GithubRepositorySummaryDTO(
+            RepositorySummaryDTO(
                 name=repo["name"],
                 description=repo.get("description") or "",
                 languages=languages,
@@ -117,7 +117,7 @@ def _convert_lang_bytes_to_ratios(lang_bytes: dict[str, int]) -> list[LanguageRa
 
 
 def _summarize_repositories(
-    summary_dtos: list[GithubRepositorySummaryDTO],
+    summary_dtos: list[RepositorySummaryDTO],
 ) -> list[list[str]]:
     """LLM 체인을 한 번만 호출해 각 리포지토리의 3줄 요약을 반환."""
     summary_chain = SimpleGithubRepositorySummaryChain()
@@ -132,14 +132,14 @@ def _build_search_results(
     stargazers_list: list[int],
     html_urls: list[HttpUrl],
     summaries: list[list[str]],
-) -> list[GithubRepoSearchResp]:
+) -> list[RepoSearchResp]:
     """LLM 요약 결과와 원본 데이터를 조합해 최종 DTO 리스트를 만든다."""
-    search_results: list[GithubRepoSearchResp] = []
+    search_results: list[RepoSearchResp] = []
 
     for name, langs, stars, url, summary in zip(
         names, languages_per_repo, stargazers_list, html_urls, summaries
     ):
-        result = GithubRepoSearchResp(
+        result = RepoSearchResp(
             name=name,
             function_summary=summary,
             languages=langs,

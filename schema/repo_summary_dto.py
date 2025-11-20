@@ -5,7 +5,7 @@ from datetime import datetime
 from schema.langauage_ratio import LanguageRatio
 
 
-class GithubRepositorySummaryDTO(BaseModel):
+class RepositorySummaryDTO(BaseModel):
     name: str  # 리포지토리 이름
     description: str  # 설명
     languages: List[LanguageRatio]  # 언어

@@ -24,6 +24,20 @@ def validate_support(languages: list[str]):
     if unsupported:
         raise UnsupportedLanguageError(f"지원 되지 않는 언어입니다: {', '.join(unsupported)}")
 
+def find_languages_list_by_query(query: str):
+    languages = _fetch_languages_as_set()
+
+    # 대소문자 무시하고 포함 여부 필터링
+    filtered = [
+        lang for lang in languages
+        if query.lower() in lang.lower()
+    ]
+
+    # 알파벳 순 정렬
+    filtered_sorted = sorted(filtered)
+
+    return filtered_sorted
+
 
 def _fetch_languages_as_set() -> set[str]:
     raw = _load_cached_or_fetch()
