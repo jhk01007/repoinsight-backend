@@ -1,22 +1,23 @@
-import time
-
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.logger import logger
 from fastapi.responses import JSONResponse
+from starlette.responses import Response
 
 from common.config.redis_client import get_redis_client
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 # 한 IP당 허용할 시간 당 요청 수
 WINDOW_SECONDS = 3600   # 1시간에
 RATE_LIMIT = 1       #  60번 까지
 
+# Limit을 적용할 엔드포인트
 ENDPOINT_BLACK_LIST = ["/api/v1/repositories/search"]
 
-def add_middlewares(app: FastAPI) -> None:
-    redis_client = get_redis_client()
+redis_client = get_redis_client()
 
-    @app.middleware("http")
-    async def rate_limit_middleware(request: Request, call_next):
+
+class IPRateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """
         Redis를 이용한 IP 레이트 리미터.
         - key: rate_limit:{ip}
@@ -51,16 +52,3 @@ def add_middlewares(app: FastAPI) -> None:
             logger.error(f"Rate limiter error: {e}")
 
         return await call_next(request)
-
-    @app.middleware("http")
-    async def log_request_time(request: Request, call_next):
-        start = time.perf_counter()
-        response = await call_next(request)
-        elapsed = time.perf_counter() - start
-
-        path = request.url.path
-        method = request.method
-
-        logger.info(f"[{method}] {path} - {elapsed:.4f}s")
-
-        return response

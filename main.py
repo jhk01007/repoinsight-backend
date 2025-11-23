@@ -3,11 +3,10 @@ from typing import Annotated
 
 from fastapi import FastAPI
 from fastapi.params import Query
-from pydantic import BaseModel
 
 from schema.repo_search_req import RepoSearchReq
-from schema.repo_search_resp import RepoSearchResp
 from schema.repo_lanaguages_search_resp import RepoLanguagesSearchResp
+from schema.wrapping_searching_response import WrappingSearchingResponse
 
 from service.github_search_service import search
 from github.languages import find_languages_list_by_query
@@ -20,11 +19,6 @@ app = FastAPI(lifespan=lifespan)
 
 # 공통 설정(로깅, CORS, 미들웨어, 예외 핸들러 등)
 setup_app(app)
-
-
-# API 응답용 래핑 모델
-class WrappingSearchingResponse(BaseModel):
-    results: list[RepoSearchResp]
 
 
 @app.post("/api/v1/repositories/search", response_model=WrappingSearchingResponse)
