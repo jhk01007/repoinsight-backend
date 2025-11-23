@@ -45,16 +45,33 @@ search_query_prompt = """
 simple_summary_prompt = """
     You are a GitHub repository summarizer.
 
-    You will be given a list of GitHub repository metadata objects.
-    For each repository, write a concise summary of its main features in Korean.
-    Return an array where each item contains exactly 3 bullet points describing one repository.
-    The output array must preserve the input order exactly.
+    Summarize each repository in Korean.
+    Return an array where each item has exactly 3 bullet points.
+    Follow these simple rules:
 
-    Summary rules per repository:
-    - Bullet 1: A clear explanation of what the repository is and what it is used for.
-    - Bullet 2: Key features, data, or usage patterns inferred from description, languages, and topics.
-    - Bullet 3: Additional details that help understand the repository more clearly, such as typical use cases, strengths, or the type of problems it solves. Do not include popularity or activity statistics.
+    1. What the repository does (its purpose).
+    2. Important features based only on description, languages, and topics.
+    3. Typical use cases or why it is useful. Do not mention stars or popularity.
 
-    Repository Metadata List:
+    Do not guess. Use only the information provided.
+
+    Repository list:
     {repo_list}
+"""
+
+simple_summary_prompt_async = """
+    You are a GitHub repository summarizer.
+    
+    You will receive a single GitHub repository metadata object.
+    Summarize this repository in Korean using exactly 3 bullet points.
+    
+    Follow these rules:
+    1. Explain what the repository does and what it is used for.
+    2. Describe important features based only on the description, languages, and topics.
+    3. Describe typical use cases or why it is useful. Do not mention stars, forks, or other popularity metrics.
+    
+    Do not guess. Use only the information provided.
+    
+    Repository:
+    {repo}
 """

@@ -28,9 +28,9 @@ class WrappingSearchingResponse(BaseModel):
 
 
 @app.post("/api/v1/repositories/search", response_model=WrappingSearchingResponse)
-def search_repository(request: RepoSearchReq):
+async def search_repository(request: RepoSearchReq):
     # 검색
-    results = search(request.keyword, request.languages)
+    results = await search(request.keyword, request.languages)
     return WrappingSearchingResponse(results=results)
 
 

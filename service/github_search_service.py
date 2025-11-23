@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from dotenv import load_dotenv
@@ -22,12 +23,12 @@ load_dotenv()
 _store = PineconeGithubSearchQualifierStore()
 _query_chain = GithubSearchQueryChain(_store)
 
-def search(
+async def search(
     question: str,
     languages: list[str] | None = None,
     sort: SortBy = SortBy.STARS,
     order: OrderBy = OrderBy.DESC,
-    per_page: int = 1,
+    per_page: int = 5,
 ) -> list[RepoSearchResp]:
     """
     GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
@@ -62,7 +63,7 @@ def search(
 
     # 4. LLM 한 번 호출해서 요약 리스트 얻기
     start = time.perf_counter()
-    summaries = _summarize_repositories(summary_dtos)
+    summaries = await _summarize_repositories_parallel_async(summary_dtos) # 병렬 테스트
     elapsed = time.perf_counter() - start
     logger.info(f"리포지토리 요약 실행 시간: {elapsed:.4f}초")
 
@@ -139,6 +140,14 @@ def _summarize_repositories(
     summaries: list[list[str]] = summary_chain.invoke(metadata_list)
     return summaries
 
+async def _summarize_repositories_parallel_async(summary_dtos):
+    """병렬 실행용 함수"""
+
+    chain = SimpleGithubRepositorySummaryChain()
+    async def one(dto):
+        return await chain.ainvoke(dto.model_dump())
+
+    return await asyncio.gather(*(one(dto) for dto in summary_dtos))
 
 def _build_search_results(
     names: list[str],
@@ -163,7 +172,6 @@ def _build_search_results(
         search_results.append(result)
 
     return search_results
-
 
 def _build_search_query(question: str, languages: list[str]):
     return _query_chain.invoke(question=question, languages=languages)

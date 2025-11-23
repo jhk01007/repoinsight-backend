@@ -1,12 +1,11 @@
 import httpx
-from typing import Any
+import os
 
 HEADERS = {
+    "Authorization": f"token {os.getenv("GITHUB_TOKEN")}",
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
 }
-
-
 
 def load_repository_languages(
     languages_url: str,
