@@ -1,4 +1,5 @@
 import base64
+import os
 import httpx
 import yaml
 import time
@@ -12,6 +13,7 @@ CACHE_PATH = PROJECT_ROOT / "data" / "linguist_languages.yml"
 CACHE_TTL = 60 * 60 * 24  # 24시간
 
 headers = {
+    "Authorization": f"token {os.getenv("GITHUB_TOKEN")}",
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
 }
