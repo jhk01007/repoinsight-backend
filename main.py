@@ -1,6 +1,9 @@
+import logging
+import time
 from typing import Annotated
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI
+from fastapi.logger import logger as fastapi_logger
 from fastapi.params import Query
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
@@ -14,6 +17,12 @@ from service.github_search_service import search
 from github.languages import find_languages_list_by_query
 
 app = FastAPI()
+
+# 기본 로깅 설정
+logging.basicConfig(level=logging.INFO)
+
+# fastapi 로거 레벨도 DEBUG로 맞춰주기
+fastapi_logger.setLevel(logging.INFO)
 
 origins = [
     "http://localhost:5173",
@@ -54,3 +63,17 @@ def search_repository_languages_list(query: Annotated[str, Query(min_length=1)])
 
 # 예외 핸들러 등록
 register_exception_handlers(app)
+
+# 요청 처리 시간 로그 미들웨어
+@app.middleware("http")
+async def log_request_time(request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed = time.perf_counter() - start
+
+    path = request.url.path
+    method = request.method
+
+    print(f"[{method}] {path} - {elapsed:.4f}s")
+
+    return response

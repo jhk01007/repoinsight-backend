@@ -1,4 +1,7 @@
+import time
+
 from dotenv import load_dotenv
+from fastapi.logger import logger
 from pydantic import HttpUrl
 
 from github.languages import validate_support
@@ -35,22 +38,31 @@ def search(
         languages = []
 
     # 1. Search Query 생성
+    start = time.perf_counter()
     search_query = _build_search_query(question=question, languages=languages)
-    print(f"생성된 Search Query: {search_query}")
+    elapsed = time.perf_counter() - start
+    logger.info(f"Search Query 생성 실행 시간: {elapsed:.4f}초")
+    logger.info(f"생성된 Search Query: {search_query}")
 
     # 2. 검색 API 호출 (로더로 분리)
+    start = time.perf_counter()
     repos = load_search_results(
         query=search_query,
         sort=sort.value,
         order=order.value,
         per_page=per_page,
     )
+    elapsed = time.perf_counter() - start
+    logger.info(f"검색 API 실행 시간: {elapsed:.4f}초")
 
     # 3. 요약 입력 DTO + 보조 데이터 준비
     summary_dtos, languages_per_repo, html_urls, names, stargazers_list = _build_summary_dtos_and_aux(repos)
 
     # 4. LLM 한 번 호출해서 요약 리스트 얻기
+    start = time.perf_counter()
     summaries = _summarize_repositories(summary_dtos)
+    elapsed = time.perf_counter() - start
+    logger.info(f"리포지토리 요약 실행 시간: {elapsed:.4f}초")
 
     # 5. 최종 응답 DTO로 조립
     return _build_search_results(
