@@ -27,7 +27,7 @@ def search(
     languages: list[str] | None = None,
     sort: SortBy = SortBy.STARS,
     order: OrderBy = OrderBy.DESC,
-    per_page: int = 5,
+    per_page: int = 1,
 ) -> list[RepoSearchResp]:
     """
     GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.

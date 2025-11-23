@@ -20,7 +20,7 @@ load_dotenv()
 class PineconeGithubSearchQualifierStore(GithubSearchQualifierStoreBase, ABC):
 
     def __init__(self,
-                 index_name: str = "github-search-qualifiers", namespace: str ="default", dim=3072, metric="cosine"):
+                 index_name: str = "github-search-qualifiers", namespace: str ="repo-qualifiers", dim=3072, metric="cosine"):
         self._index_name = index_name
         self._namespace = namespace
         self.pinecone_client = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))

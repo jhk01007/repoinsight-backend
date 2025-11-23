@@ -34,21 +34,25 @@ class GithubSearchQueryChain:
 
         def debug(name):
             return RunnableLambda(lambda x: (logger.info(f"{name}: {x}"), x)[1])
+
         self.search_query_chain = (
-            RunnablePassthrough()
-            .assign(
-                current_date=RunnableLambda(lambda _: datetime.now().strftime("%Y-%m-%d")) | debug("현재 날짜"),
-                original_question=RunnableLambda(itemgetter("question")) | debug("원본 질문"),
-                languages=RunnableLambda(itemgetter("languages")) | debug("언어 목록"),
-            )
-            .assign(
-                translated_question=RunnableLambda(itemgetter("original_question")) | translate_chain  | debug("번역된 질문"),
-            )
-            .assign(
-                question=RunnableLambda(itemgetter("translated_question")),
-                context=RunnableLambda(itemgetter("translated_question")) | retriever | debug("찾아온 문서"),
-            )
-            | search_query_chain
+                RunnablePassthrough()
+                .assign(
+                    current_date=RunnableLambda(lambda _: datetime.now().strftime("%Y-%m-%d")) | debug("현재 날짜"),
+                    original_question=RunnableLambda(itemgetter("question")) | debug("원본 질문"),
+                    languages=RunnableLambda(itemgetter("languages")) | debug("언어 목록"),
+                )
+                .assign(
+                    translated_question=RunnableLambda(itemgetter("original_question")) | translate_chain | debug("번역된 질문"),
+                )
+                .assign(
+                    question=RunnableLambda(itemgetter("translated_question")),
+                    context=RunnableLambda(itemgetter("translated_question"))
+                            | retriever
+                            | RunnableLambda(lambda docs: [doc.metadata for doc in docs])
+                            | debug("찾아온 문서"),
+                )
+                | search_query_chain
         )
 
     @staticmethod
