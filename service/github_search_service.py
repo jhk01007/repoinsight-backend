@@ -16,7 +16,7 @@ from schema.order_by import OrderBy
 from schema.sort_by import SortBy
 
 from github.search_results_loader import load_search_results
-from github.repository_lanaguages_loader import load_repository_languages
+from github.repository_languages_loader import load_repository_languages
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ async def search(
     per_page: int = 5,
 ) -> list[RepoSearchResp]:
     """
-    GitHub 검색 + 언어 비율 조회 + LLM 요약까지 포함한 high-level 함수.
+    GitHub 검색 + 언어 비율 조회 + LLM 요약을 실행하는 일종의 어셈블러 함수
     """
 
     # 지원 가능한 언어인지 검증
@@ -59,7 +59,7 @@ async def search(
     logger.info(f"검색 API 실행 시간: {elapsed:.4f}초")
 
     # 3. 요약 입력 DTO + 보조 데이터 준비
-    summary_dtos, languages_per_repo, html_urls, names, stargazers_list = _build_summary_dtos_and_aux(repos)
+    summary_dtos, languages_per_repo, html_urls, names, stargazers_list = await _build_summary_dtos_and_aux(repos)
 
     # 4. LLM 한 번 호출해서 요약 리스트 얻기
     start = time.perf_counter()
@@ -77,13 +77,15 @@ async def search(
     )
 
 
-def _build_summary_dtos_and_aux(
+async def _build_summary_dtos_and_aux(
     repos: list[dict],
 ) -> tuple[list[RepositorySummaryDTO], list[list[LanguageRatio]], list[HttpUrl], list[str], list[int]]:
     """
     - LLM 요약 입력용 GithubRepositorySummaryDTO 리스트
     - 최종 응답 조립에 필요한 보조 데이터들
     을 한 번에 만든다.
+
+    asyncio.to_thread 를 사용해 병렬로 처리하여 전체 응답 시간을 줄인다.
     """
     summary_dtos: list[RepositorySummaryDTO] = []
     languages_per_repo: list[list[LanguageRatio]] = []
@@ -91,25 +93,33 @@ def _build_summary_dtos_and_aux(
     names: list[str] = []
     stargazers_list: list[int] = []
 
-    for repo in repos:
-        # 언어 조회 API 호출은 로더로 분리
-        lang_bytes = load_repository_languages(repo["languages_url"])
+    async def build_one(repo: dict):
+        # 언어 조회 API 호출은 동기 함수(load_repository_languages)를
+        # 별도 스레드에서 실행하여 병렬화한다.
+        lang_bytes = await asyncio.to_thread(
+            load_repository_languages,
+            repo["languages_url"],
+        )
         languages = _convert_lang_bytes_to_ratios(lang_bytes)
 
-        summary_dtos.append(
-            RepositorySummaryDTO(
-                name=repo["name"],
-                description=repo.get("description") or "",
-                languages=languages,
-                topics=repo.get("topics", []),
-                pushed_at=repo["pushed_at"],
-            )
+        dto = RepositorySummaryDTO(
+            name=repo["name"],
+            description=repo.get("description") or "",
+            languages=languages,
+            topics=repo.get("topics", []),
+            pushed_at=repo["pushed_at"],
         )
+        return dto, languages, repo["html_url"], repo["name"], repo["stargazers_count"]
 
+    # 모든 repo에 대한 작업을 동시에 실행
+    results = await asyncio.gather(*(build_one(repo) for repo in repos))
+
+    for dto, languages, html_url, name, stars in results:
+        summary_dtos.append(dto)
         languages_per_repo.append(languages)
-        html_urls.append(repo["html_url"])
-        names.append(repo["name"])
-        stargazers_list.append(repo["stargazers_count"])
+        html_urls.append(html_url)
+        names.append(name)
+        stargazers_list.append(stars)
 
     return summary_dtos, languages_per_repo, html_urls, names, stargazers_list
 
