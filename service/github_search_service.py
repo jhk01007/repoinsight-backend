@@ -19,6 +19,8 @@ from github.repository_lanaguages_loader import load_repository_languages
 
 load_dotenv()
 
+_store = PineconeGithubSearchQualifierStore()
+_query_chain = GithubSearchQueryChain(_store)
 
 def search(
     question: str,
@@ -164,7 +166,4 @@ def _build_search_results(
 
 
 def _build_search_query(question: str, languages: list[str]):
-    # Pinecone 벡터 디비 의존성 주입
-    store = PineconeGithubSearchQualifierStore("github-search-qualifiers", "repo-qualifiers")
-    query_chain = GithubSearchQueryChain(store)
-    return query_chain.invoke(question=question, languages=languages)
+    return _query_chain.invoke(question=question, languages=languages)

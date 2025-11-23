@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from fastapi.logger import logger
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
@@ -11,7 +12,6 @@ from datetime import datetime
 from github.web_docs_loader import fetch_github_docs
 from langchain.prompt.search_prompt import translate_prompt, search_query_prompt
 
-from github.languages import validate_support
 from langchain.vector_store.github_search_qualifier_store_base import GithubSearchQualifierStoreBase
 
 load_dotenv()
@@ -26,19 +26,14 @@ class GithubSearchQueryChain:
     def __init__(self, vector_db: GithubSearchQualifierStoreBase):
         """외부에서 Vector DB 주입"""
 
-        self.vector_db = vector_db
 
-        # 문서 로딩 및 저장
-        repo_docs = self._load_search_docs()
-        self.vector_db.save_documents(repo_docs)
-
-        retriever = self.vector_db.get_retriever(top_k=5)
+        retriever = vector_db.get_retriever(top_k=5)
 
         translate_chain = self._get_translation_chain()
         search_query_chain = self._get_search_query_chain()
 
         def debug(name):
-            return RunnableLambda(lambda x: (print(f"[DEBUG:{name}] {x}"), x)[1])
+            return RunnableLambda(lambda x: (logger.info(f"{name}: {x}"), x)[1])
         self.search_query_chain = (
             RunnablePassthrough()
             .assign(
