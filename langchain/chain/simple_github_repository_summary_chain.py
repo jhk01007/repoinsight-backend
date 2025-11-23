@@ -1,5 +1,3 @@
-from typing import List
-
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel

@@ -1,4 +1,3 @@
-# main.py
 from typing import Annotated
 
 from fastapi import FastAPI

@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 # 한 IP당 허용할 시간 당 요청 수
 WINDOW_SECONDS = 3600   # 1시간에
-RATE_LIMIT = 1       #  60번 까지
+RATE_LIMIT = 60      #  60번 까지
 
 # Limit을 적용할 엔드포인트
 ENDPOINT_BLACK_LIST = ["/api/v1/repositories/search"]
