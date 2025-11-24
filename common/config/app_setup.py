@@ -24,7 +24,7 @@ def setup_cors(app: FastAPI) -> None:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"], # 임시 허용
+        allow_origins=origins, # 임시 허용
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
