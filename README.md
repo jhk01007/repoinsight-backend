@@ -4,7 +4,8 @@
 > 
 <br><br>
 # **🏗 시스템 아키텍처 (System Architecture)**
-<img width="2463" height="1590" alt="연습장 drawio" src="https://github.com/user-attachments/assets/27df8214-1aaa-4160-96b9-e2e59fcb1a7f" />
+<img width="2463" height="1590" alt="연습장 drawio" src="https://github.com/user-attachments/assets/a43b2a13-7355-411e-9e13-0f22c2819c4e" />
+
 <br><br>
 
 | 구성 요소 | 역할 |
