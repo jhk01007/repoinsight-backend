@@ -18,8 +18,6 @@ from schema.sort_by import SortBy
 from github.search_results_loader import load_search_results
 from github.repository_languages_loader import load_repository_languages
 
-load_dotenv()
-
 _store = PineconeGithubSearchQualifierStore()
 _query_chain = GithubSearchQueryChain(_store)
 
