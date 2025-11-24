@@ -1,0 +1,103 @@
+name: CI-CD for repoinsight server
+
+# main 브랜치로 푸시될 때 파이프라인 작동
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_NAME: repoinsight-server
+      AWS_REGION: ap-northeast-2
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2. 이미지 태그 설정 (커밋 SHA)
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      # 3. AWS 자격 증명 설정
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # 4. ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 5. Docker 이미지 빌드 & ECR 푸시
+      - name: Build and push Docker image
+        run: |
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          IMAGE_BASE=$ECR_REGISTRY/${{ env.SERVICE_NAME }}
+
+          echo "ECR_REGISTRY=$ECR_REGISTRY"
+          echo "IMAGE_BASE=$IMAGE_BASE"
+          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}"
+
+          # 커밋 SHA 태그 + latest 태그 둘 다 빌드
+          docker build \
+            -t $IMAGE_BASE:${{ env.IMAGE_TAG }} \
+            -t $IMAGE_BASE:latest .
+
+          docker push $IMAGE_BASE:${{ env.IMAGE_TAG }}
+          docker push $IMAGE_BASE:latest
+
+      # 6. EC2에 배포 디렉토리 준비
+      - name: Prepare deploy directory on EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/repoinsight_app
+
+      # 7. compose.yml만 EC2로 전송
+      - name: Upload compose.yml to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          source: "compose.yml"
+          target: "/home/ubuntu/repoinsight_app/"
+
+      # 8. EC2에서 .env 생성 + docker compose 실행
+      - name: Run docker compose on EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /home/ubuntu/repoinsight_app
+
+            echo "==== 1) .env 생성 (매 배포마다 재생성) ===="
+            cat > .env << 'EOF'
+            IMAGE_NAME=${{ steps.login-ecr.outputs.registry }}/${{ env.SERVICE_NAME }}:latest
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}
+            GIT_API_TOKEN=${{ secrets.GIT_API_TOKEN }}
+            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+            EOF
+
+            echo "==== 2) 최신 이미지 Pull ===="
+            docker compose pull
+
+            echo "==== 3) 컨테이너 재기동 ===="
+            docker compose up -d
+
+            echo "==== 4) 현재 컨테이너 상태 ===="
+            docker compose ps

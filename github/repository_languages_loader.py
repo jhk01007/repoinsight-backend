@@ -2,7 +2,7 @@ import httpx
 import os
 
 HEADERS = {
-    "Authorization": f"token {os.getenv('GITHUB_TOKEN')}",
+    "Authorization": f"token {os.getenv('GIT_API_TOKEN')}",
     "Accept": "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
 }

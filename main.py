@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.params import Query
 
@@ -12,6 +13,9 @@ from github.languages import find_languages_list_by_query
 
 from common.config.app_setup import setup_app
 from common.config.lifespan import lifespan
+
+# 환경변수 로드
+load_dotenv()
 
 # lifespan으로 startup 관리
 app = FastAPI(lifespan=lifespan)
