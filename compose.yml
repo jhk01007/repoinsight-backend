@@ -1,0 +1,16 @@
+services:
+  repoinsight-server:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis-cache:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis-cache:6379/0
+  redis-cache:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
