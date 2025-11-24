@@ -10,7 +10,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      SERVICE_NAME: repoinsight-server
+      SERVICE_NAME: repoinsight
       AWS_REGION: ap-northeast-2
 
     steps:
