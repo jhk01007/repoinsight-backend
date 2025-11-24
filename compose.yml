@@ -1,6 +1,6 @@
 services:
   repoinsight-server:
-    build: .
+    image: ${IMAGE_NAME}
     ports:
       - "8000:8000"
     depends_on:
@@ -8,6 +8,11 @@ services:
         condition: service_healthy
     environment:
       - REDIS_URL=redis://redis-cache:6379/0
+      - OPENAI_API_KEY
+      - PINECONE_API_KEY
+      - GIT_API_TOKEN
+      - FRONTEND_URL
+
   redis-cache:
     image: redis:7.4-alpine
     healthcheck:

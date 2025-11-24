@@ -10,6 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 class LogRequestTimeMiddleware(BaseHTTPMiddleware):
     """ API 요청 시간 로거 미들웨어"""
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        logger.info(f"요청자: {request.client.host}:{request.client.port}")
         start = time.perf_counter()
         response = await call_next(request)
         elapsed = time.perf_counter() - start
